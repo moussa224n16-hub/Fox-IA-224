@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fox - AI Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Personnalisation de la barre de défilement */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Animation d'entrée du message */
+        .fade-in-up { animation: fadeInUp 0.5s ease-out forwards; opacity: 0; transform: translateY(20px); }
+        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+
+        /* Style du Markdown généré */
+        .prose pre { background-color: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+        .prose code { color: #2563eb; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col font-sans">
+
+    <div id="intro-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-sm transition-opacity duration-700">
+        <div class="text-center p-8 bg-white rounded-2xl shadow-2xl max-w-md mx-4 transform transition-all scale-100">
+            <div class="w-32 h-32 mx-auto mb-6 rounded-full overflow-hidden border-4 border-blue-500 shadow-lg relative">
+                 <img src="https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=200" alt="Fox le chien" class="object-cover w-full h-full">
+            </div>
+            <h1 class="text-3xl font-bold text-slate-800 mb-2">Fox AI</h1>
+            <p class="text-blue-600 font-medium mb-4">Initialisation...</p>
+            <p class="text-slate-600 text-lg italic" id="typewriter-text"></p>
+            <button onclick="closeIntro()" class="mt-8 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors hidden" id="start-btn">
+                Commencer à discuter
+            </button>
+        </div>
+    </div>
+
+    <header class="bg-white border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-10">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                <i class="fa-solid fa-dog text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-xl text-slate-800">Fox</h1>
+                <p class="text-xs text-slate-500">Entraîné par Moussa Doumbouya</p>
+            </div>
+        </div>
+        <button class="text-slate-400 hover:text-blue-600 transition"><i class="fa-solid fa-gear"></i></button>
+    </header>
+
+    <main id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 max-w-4xl mx-auto w-full">
+        <div class="flex gap-4">
+            <div class="w-8 h-8 rounded-full bg-blue-600 flex-shrink-0 flex items-center justify-center text-white mt-1">
+                <i class="fa-solid fa-dog text-sm"></i>
+            </div>
+            <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-slate-700 max-w-[85%]">
+                <p>Wouf ! Bonjour ! Je suis prêt à coder, analyser l'actu ou parler cybersécurité. Quelle est ta première question ?</p>
+            </div>
+        </div>
+    </main>
+
+    <footer class="p-4 bg-slate-50">
+        <div class="max-w-4xl mx-auto relative">
+            <form id="chat-form" class="relative flex items-end gap-2 bg-white p-2 rounded-3xl shadow-lg border border-slate-200 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all">
+                <button type="button" class="p-3 text-slate-400 hover:text-blue-600 rounded-full transition">
+                    <i class="fa-solid fa-paperclip"></i>
+                </button>
+                <textarea 
+                    id="user-input" 
+                    rows="1" 
+                    placeholder="Posez une question à Fox..." 
+                    class="w-full py-3 px-2 bg-transparent border-none focus:ring-0 resize-none max-h-32 text-slate-700 placeholder-slate-400 outline-none"
+                    oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+                <button type="submit" id="send-btn" class="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </form>
+            <p class="text-center text-xs text-slate-400 mt-2">Fox peut faire des erreurs. Vérifiez les informations importantes.</p>
+        </div>
+    </footer>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const overlay = document.getElementById('intro-overlay');
+        const typewriterText = document.getElementById('typewriter-text');
+        const startBtn = document.getElementById('start-btn');
+
+        // --- 1. Animation de démarrage ---
+        const welcomeMsg = "Bonjour, je suis Fox entrainé Par Moussa Doumbouya , je serai ravie de repond tout vos inquiétude !";
+        let i = 0;
+
+        function typeWriter() {
+            if (i < welcomeMsg.length) {
+                typewriterText.innerHTML += welcomeMsg.charAt(i);
+                i++;
+                setTimeout(typeWriter, 40); // Vitesse de frappe
+            } else {
+                startBtn.classList.remove('hidden');
+                startBtn.classList.add('fade-in-up');
+            }
+        }
+        
+        // Démarrer l'animation après un court délai
+        setTimeout(typeWriter, 500);
+
+        function closeIntro() {
+            overlay.style.opacity = '0';
+            setTimeout(() => {
+                overlay.style.display = 'none';
+            }, 700);
+        }
+
+        // --- 2. Gestion du Chat ---
+
+        function addMessage(content, isUser) {
+            const div = document.createElement('div');
+            div.className = `flex gap-4 fade-in-up ${isUser ? 'flex-row-reverse' : ''}`;
+            
+            const avatar = isUser 
+                ? `<div class="w-8 h-8 rounded-full bg-slate-600 flex-shrink-0 flex items-center justify-center text-white mt-1"><i class="fa-solid fa-user text-sm"></i></div>`
+                : `<div class="w-8 h-8 rounded-full bg-blue-600 flex-shrink-0 flex items-center justify-center text-white mt-1"><i class="fa-solid fa-dog text-sm"></i></div>`;
+
+            const bubbleClass = isUser 
+                ? 'bg-blue-600 text-white rounded-tr-none' 
+                : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none prose prose-slate max-w-none';
+
+            // Si c'est Fox, on parse le Markdown, sinon texte brut
+            const formattedContent = isUser ? content : marked.parse(content);
+
+            div.innerHTML = `
+                ${avatar}
+                <div class="p-4 rounded-2xl shadow-sm max-w-[85%] ${bubbleClass}">
+                    ${formattedContent}
+                </div>
+            `;
+            
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function showLoading() {
+            const div = document.createElement('div');
+            div.id = 'loading-indicator';
+            div.className = 'flex gap-4 fade-in-up';
+            div.innerHTML = `
+                <div class="w-8 h-8 rounded-full bg-blue-600 flex-shrink-0 flex items-center justify-center text-white mt-1"><i class="fa-solid fa-dog text-sm"></i></div>
+                <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 flex items-center gap-2">
+                    <div class="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                    <div class="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                    <div class="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                </div>
+            `;
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function removeLoading() {
+            const loading = document.getElementById('loading-indicator');
+            if(loading) loading.remove();
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // Ajouter le message utilisateur
+            addMessage(message, true);
+            userInput.value = '';
+            userInput.style.height = 'auto'; // Reset height
+
+            // Afficher le chargement
+            showLoading();
+
+            try {
+                // Appel au backend Node.js
+                const response = await fetch('http://localhost:3000/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const data = await response.json();
+                
+                removeLoading();
+                addMessage(data.reply, false);
+
+            } catch (error) {
+                removeLoading();
+                addMessage("Grrr... Je n'arrive pas à joindre le serveur. Vérifie que `node server.js` est bien lancé !", false);
+            }
+        });
+
+        // Gestion de la touche Entrée pour envoyer (Shift+Entrée pour saut de ligne)
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatForm.dispatchEvent(new Event('submit'));
+            }
+        });
+    </script>
+</body>
+</html>
